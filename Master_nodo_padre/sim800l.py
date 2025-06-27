@@ -1,13 +1,16 @@
+# sim800l.py – Comunicación por SIM800L vía comandos AT (POST JSON)
+
 from machine import UART
 import time
 import ujson
+import config
 
 class SIM800L:
-    def __init__(self, tx=27, rx=26, baudrate=9600):
-        self.uart = UART(2, tx=tx, rx=rx, baudrate=baudrate)
-        self._flush()
+    def __init__(self):
+        self.uart = UART(1, baudrate=9600, tx=config.SIM800_TX, rx=config.SIM800_RX)
+        self.flush()
 
-    def _flush(self):
+    def flush(self):
         while self.uart.any():
             self.uart.read()
 
@@ -16,25 +19,19 @@ class SIM800L:
         time.sleep(delay)
         return self.uart.read()
 
-    def send_json(self, url, data):
-        data_str = ujson.dumps(data)
+    def send_json(self, data):
+        json_data = ujson.dumps(data)
         self.send_cmd('AT')
         self.send_cmd('AT+SAPBR=3,1,"CONTYPE","GPRS"')
-        self.send_cmd('AT+SAPBR=3,1,"APN","internet.claro.com.co"')  # Cambia el APN según tu operador
+        self.send_cmd(f'AT+SAPBR=3,1,"APN","{config.APN}"')
         self.send_cmd('AT+SAPBR=1,1', 3)
         self.send_cmd('AT+HTTPINIT')
-        self.send_cmd(f'AT+HTTPPARA="URL","{url}"')
+        self.send_cmd(f'AT+HTTPPARA="URL","{config.SERVER_URL}"')
         self.send_cmd('AT+HTTPPARA="CONTENT","application/json"')
-        self.send_cmd(f'AT+HTTPDATA={len(data_str)},10000')
+        self.send_cmd(f'AT+HTTPDATA={len(json_data)},10000')
         time.sleep(0.5)
-        self.uart.write(data_str.encode())
+        self.uart.write(json_data.encode())
         time.sleep(1)
         self.send_cmd('AT+HTTPACTION=1', 3)
         self.send_cmd('AT+HTTPTERM')
         self.send_cmd('AT+SAPBR=0,1')
-
-    def test_connection(self):
-        self.send_cmd('AT')
-        self.send_cmd('AT+CSQ')
-        self.send_cmd('AT+CREG?')
-        self.send_cmd('AT+CGATT?')
