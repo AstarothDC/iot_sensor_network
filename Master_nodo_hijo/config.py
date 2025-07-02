@@ -7,8 +7,8 @@ PATH_COPY = "CopiaCSVnodoHijo_35.json"
 PATH_TOTAL = "dataTotal_hijo_35.json"
 
 # Wi-Fi del nodo padre
-WIFI_SSID = "GIDEAMSERVER"
-WIFI_PASS = "1234567890"
+WIFI_SSID = "NodoPadre_AP"
+WIFI_PASS = "12345678"
 
 # Servidor (nodo padre)
 SERVER_URL = "http://192.168.4.1"

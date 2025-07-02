@@ -16,10 +16,11 @@ def init_queue():
 # Guardar un paquete no enviado
 def enqueue(data, timestamp):
     try:
-        fname = f"{QUEUE_DIR}/fail_{timestamp.replace(':', '-')}.json"
+        safe_ts = timestamp.replace(":", "-")
+        fname = "{}/fail_{}.json".format(QUEUE_DIR, safe_ts)
         with open(fname, "w") as f:
             ujson.dump(data, f)
-        print(f"[⬇] Guardado en cola de reintento: {fname}")
+        print("[⬇] Guardado en cola de reintento:", fname)
     except Exception as e:
         print("[ERROR] Al guardar en cola LTE:", e)
 
@@ -28,14 +29,15 @@ def process_queue(sender_func):
     try:
         for fname in os.listdir(QUEUE_DIR):
             if fname.endswith(".json"):
-                path = f"{QUEUE_DIR}/{fname}"
+                path = "{}/{}".format(QUEUE_DIR, fname)
                 with open(path) as f:
                     data = ujson.load(f)
                 try:
                     sender_func(data)
                     os.remove(path)
-                    print(f"[✔] Reenviado y eliminado: {fname}")
+                    print("[✔] Reenviado y eliminado:", fname)
                 except Exception as e:
-                    print(f"[!] Falló reenvío de {fname}:", e)
+                    print("[!] Falló reenvío de", fname, ":", e)
     except Exception as e:
         print("[ERROR] Procesando cola LTE:", e)
+

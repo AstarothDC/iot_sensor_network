@@ -13,7 +13,7 @@ ap.active(True)
 ap.config(essid="NodoPadre_AP", password="12345678")
 print("[WIFI] Punto de acceso activado como NodoPadre_AP")
 
-# Servidor HTTP (usando sockets)
+# Servidor HTTP (asíncrono)
 async def handle_client(reader, writer):
     try:
         request_line = await reader.readline()
@@ -55,4 +55,8 @@ async def handle_client(reader, writer):
 async def start_server():
     server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
     print("[HTTP] Servidor iniciado en /data y /hora")
-    await server.serve_forever()
+
+    # Reemplazo de serve_forever()
+    while True:
+        await asyncio.sleep(3600)
+

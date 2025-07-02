@@ -30,13 +30,13 @@ AP_SSID = "NodoPadre_AP"
 AP_PASSWORD = "12345678"
 
 # URL del servidor al que se envían los datos por LTE
-SERVER_URL = "http://tuservidor.com/api/datos"
+SERVER_URL = ""
 
 # APN del operador móvil (cambiar según operador)
 APN = "internet.claro.com.co"
 
 # Intervalo de medición (en segundos)
-READ_INTERVAL = 1800  # 30 minutos
+READ_INTERVAL = 30  # 1800 - 30 minutos
 
 # Frecuencia del LoRa (opcional si se usa LoRa en el futuro)
 LORA_FREQ = 915E6

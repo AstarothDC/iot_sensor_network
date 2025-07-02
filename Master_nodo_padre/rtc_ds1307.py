@@ -8,7 +8,7 @@ class RTC_DS1307:
         self.rtc = ds1307.DS1307(i2c)
 
     def get_timestamp(self):
-        y, m, d, wd, h, mi, s = self.rtc.datetime()
+        y, m, d, wd, h, mi, s, _ = self.rtc.datetime()
         return "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}".format(y, m, d, h, mi, s)
 
     def set_time(self, y, m, d, h, mi, s):
