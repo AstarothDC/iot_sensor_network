@@ -1,84 +1,104 @@
+from machine import I2C, deepsleep, Pin
 import time
-from machine import Pin, ADC, I2C, deepsleep
-from config import *
+import config
 from wifi_client import connect_wifi, disconnect_wifi
 from http_client import get_remote_time, send_data
-from rtc_ds1307 import RTC_DS1307, setup_rtc
-from bme280 import read_bme
+from rtc_ds1307 import RTC_DS1307
+from sd_utils import save_json, copy_json
+from power_control import power_on_all, power_off_all
 from hd38 import HD38
 from cwt_soil import CWT_Soil
-from sd_utils import save_json, copy_json
+from bme280 import read_bme
+from retry_queue import init_queue, enqueue, process_queue
 
-# 🔌 Inicializar GPIO
-led = Pin(LED_PIN, Pin.OUT)
-relay = Pin(RELAY_PIN, Pin.OUT)
-led.value(1)
-relay.value(1)
+print(f"\n🚀 Nodo hijo {config.NODE_ID} iniciando...")
 
-print(f"🔋 Nodo hijo {NODE_ID} iniciando...")
-
-# 🕒 Inicializar RTC
-i2c = I2C(1, scl=Pin(I2C_SCL), sda=Pin(I2C_SDA))
+# 🕒 RTC vía I2C
+i2c = I2C(0, scl=Pin(config.I2C_SCL), sda=Pin(config.I2C_SDA))
 rtc = RTC_DS1307(i2c)
 
-# 🌐 Conexión Wi-Fi
-wifi_ok = connect_wifi(WIFI_SSID, WIFI_PASS, WIFI_TIMEOUT_MS)
+# Inicializar sistema de reintentos
+init_queue()
 
-# ⏱️ Sincronizar hora
+# 🌐 Conexión Wi-Fi al nodo padre
+wifi_ok = connect_wifi(config.WIFI_SSID, config.WIFI_PASS, config.WIFI_TIMEOUT_MS)
+
+# ⏱️ Sincronizar hora si hay red
 if wifi_ok:
-    hora_remota = get_remote_time()
-    if hora_remota:
-        rtc.set_time_from_string(hora_remota)
-        print("✅ RTC sincronizado:", hora_remota)
+    remote_time = get_remote_time()
+    if remote_time:
+        rtc.set_time_from_string(remote_time)
+        print("✅ RTC sincronizado:", remote_time)
     else:
-        print("⚠️ No se pudo sincronizar la hora")
+        print("⚠️ No se pudo obtener hora del nodo padre")
 else:
-    print("⚠️ Sin Wi-Fi, solo se usará SD")
+    print("⚠️ Nodo sin Wi-Fi, se usará hora RTC local")
 
 # 🕒 Timestamp actual
 timestamp = rtc.get_timestamp()
-print("🕒 Timestamp:", timestamp)
+print("[⏰] Timestamp:", timestamp)
 
-# 🌡️ Lectura sensores
+# ⚡ Encender sensores
+power_on_all()
+time.sleep(2)  # estabilización
+
+# 📏 Lectura de sensores
+hd_sensor = HD38(config.HD38_ADC_PIN)
+hd = hd_sensor.read_percent()
+print("[HD-38] Humedad del suelo:", hd)
+
+cwt_sensor = CWT_Soil(tx_pin=config.UART_RS485_TX,
+                      rx_pin=config.UART_RS485_RX,
+                      de_re_pin=config.RS485_DE_RE)
+cwt_data = cwt_sensor.read_values()
+print("[CWT] Lectura:", cwt_data)
+
 ambient = read_bme(i2c)
-print("🌤️ BME280:", ambient)
+print("[BME280] Lectura:", ambient)
 
-hd_sensor = HD38(HD38_PIN)
-soil_hum = {"soil_hum": hd_sensor.read_percent()}
-print("🌱 HD38:", soil_hum)
+# 🧩 Unir todos los datos
+soil = {"hd38": hd}
+soil.update(cwt_data)
 
-cwt_sensor = CWT_Soil(CWT_TX, CWT_RX, CWT_DE_RE)
-soil_data = cwt_sensor.read_values()
-print("🧪 CWT:", soil_data)
-
-# 🧩 Unir todo
 data = {
-    "id": NODE_ID,
+    "id": config.NODE_ID,
     "timestamp": timestamp,
     "ambient": ambient,
-    "soil": {**soil_hum, **soil_data}
+    "soil": soil
 }
 
 # 💾 Guardar en SD
-save_json(data, PATH_FILE)
-copy_json(data, PATH_COPY)
-save_json(data, PATH_TOTAL)
+save_json(data, config.PATH_FILE)
+copy_json(data, config.PATH_COPY)
+save_json(data, config.PATH_TOTAL)
+print("💾 Datos almacenados localmente")
 
-# 📡 Enviar si hay red
+# 📡 Reintentos anteriores (si hay red)
+if wifi_ok:
+    print("🔁 Procesando reintentos previos...")
+    process_queue(send_data)
+
+# 📤 Enviar dato actual
 if wifi_ok:
     try:
-        sent = send_data(data)
-        if sent:
-            print("✅ Datos enviados con éxito")
+        if send_data(data):
+            print("✅ Datos enviados al nodo padre")
         else:
-            print("⚠️ Fallo en envío HTTP")
+            print("⚠️ Fallo en envío actual, se guardará para reintento")
+            enqueue(data, timestamp)
     except Exception as e:
         print("❌ Error al enviar:", e)
+        enqueue(data, timestamp)
 else:
-    print("📂 Datos guardados en SD por falta de conexión")
+    print("📂 Sin Wi-Fi: dato guardado para reintento")
+    enqueue(data, timestamp)
 
-# 💤 Prepararse para dormir
+# 🔌 Apagar sensores y Wi-Fi
+power_off_all()
 disconnect_wifi()
-print(f"😴 Deep sleep por {SAMPLING_TIME_MS // 60000} min...")
 time.sleep(1)
-deepsleep(SAMPLING_TIME_MS)
+
+# 😴 Deep Sleep
+print(f"😴 Deep sleep por {config.SAMPLING_TIME_MS // 60000} min...\n")
+deepsleep(config.SAMPLING_TIME_MS)
+

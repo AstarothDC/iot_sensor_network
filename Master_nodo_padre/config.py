@@ -25,12 +25,16 @@ SPI_SCK = 18
 SPI_MOSI = 23
 SPI_MISO = 19
 
+# Pines para controlar energía (relés o MOSFETs)
+PIN_SIM800L_POWER = 25  # GPIO que enciende el relé del SIM800L
+PIN_CWT_POWER     = 33  # GPIO que enciende el relé del sensor CWT
+
 # Red Wi-Fi (como Access Point para nodos hijos)
 AP_SSID = "NodoPadre_AP"
 AP_PASSWORD = "12345678"
 
 # URL del servidor al que se envían los datos por LTE
-SERVER_URL = ""
+SERVER_URL = "http://sistemasinteligentes.unimagdalena.edu.co/api/nodes/"
 
 # APN del operador móvil (cambiar según operador)
 APN = "internet.claro.com.co"

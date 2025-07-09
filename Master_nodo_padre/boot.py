@@ -1,4 +1,4 @@
-# boot.py – Configuración inicial del nodo (montaje de microSD)
+# boot.py – Configuración inicial del nodo (montaje de microSD y reloj)
 
 import machine
 import os
@@ -7,12 +7,24 @@ import config
 import time
 import network
 import ntptime
-from rtc_ds1307 import RTC_DS1307  # Asegúrate de tener esta clase
+from rtc_ds1307 import RTC_DS1307
 import ds1307
 
-print("[BOOT] Iniciando SPI y montaje de SD...")
+print("[BOOT] Preparando pines de control de energía...")
+
+# === 0. Inicializar pines de control (relés o MOSFETs) ===
+try:
+    sim800_power = machine.Pin(config.PIN_SIM800L_POWER, machine.Pin.OUT)
+    cwt_power = machine.Pin(config.PIN_CWT_POWER, machine.Pin.OUT)
+
+    sim800_power.off()  # Apagar módulos por defecto al arrancar
+    cwt_power.off()
+    print("✅ Pines de relé configurados correctamente")
+except Exception as e:
+    print("⚠️ Error al configurar pines de relé:", e)
 
 # === 1. Montaje de tarjeta SD ===
+print("[BOOT] Iniciando SPI y montaje de SD...")
 spi = machine.SPI(2, baudrate=1000000, polarity=0, phase=0,
                   sck=machine.Pin(config.SPI_SCK),
                   mosi=machine.Pin(config.SPI_MOSI),
@@ -38,9 +50,8 @@ def sync_rtc():
     rtc = machine.RTC()
 
     try:
-        # Intentar NTP si hay conectividad (LTE o WiFi)
         print("🌐 Intentando sincronizar con servidor NTP...")
-        ntptime.settime()  # Ajusta el RTC interno (UTC)
+        ntptime.settime()  # UTC
         utc_time = time.localtime(time.time() + config.TIMEZONE_OFFSET)
         rtc.datetime((utc_time[0], utc_time[1], utc_time[2], utc_time[6],
                       utc_time[3], utc_time[4], utc_time[5], 0))
@@ -61,3 +72,4 @@ def sync_rtc():
 sync_rtc()
 print("✅ Finalizó boot.py – ejecutando main.py...\n")
 time.sleep(1)
+
